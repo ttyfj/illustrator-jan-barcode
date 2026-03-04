@@ -1,8 +1,9 @@
 // This script is public domain.
 // Created by Tatsuya Fujii.
 // https://blue.mints.ne.jp/jan/
-// version 7
-// Released Jan 7, 2026
+// https://github.com/ttyfj/illustrator-jan-barcode
+// version 9
+// Released Mar 4, 2026
 
 
 
@@ -109,33 +110,25 @@ for (var i = 0; i < jan.length; i++) {
 // 各JANの規格上の桁数を変数にする
 // チェックディジット計算時の重み(weight)も変数にする
 var specificationalJanLength;
-var weight = [];
 
 if (janKind === "JAN-13"){
 	specificationalJanLength = 13;
-	weight = [1,3];
 }
 if (janKind === "JAN-8"){
 	specificationalJanLength = 8;
-	weight = [3,1];
 }
 
 
 // チェックディジットを、1〜12桁目の数字(JAN-13)、または1〜7桁目の数字(JAN-8)で求める
 var sum = 0;
+var tempDigits = digits.slice(0, specificationalJanLength - 1);
+var reverseDigits = tempDigits.reverse();
 
-for (var i = 0; i < (specificationalJanLength - 1); i++) {
-	if (i % 2 === 0) {
-		// 偶数 index（1桁目,3桁目...）
-		sum += digits[i] * weight[0];
-	} else {
-		// 奇数 index（2桁目,4桁目...）
-		sum += digits[i] * weight[1];
-	}
+for (var i = 0; i < reverseDigits.length; i++) {
+    sum += (i % 2 === 0) ? reverseDigits[i] * 3 : reverseDigits[i] * 1;
 }
 
 var checkDigit = (10 - (sum % 10)) % 10;
-
 
 
 // 入力されたJANコードにチェックディジットが無い場合は、先に計算したチェックディジットを追加する。文字列janもチェックディジットを追加しておく。
@@ -208,8 +201,10 @@ var xPosition = 0;
 // 背景を作る
 createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight, janKind);
 
-// 左のマージンを決める(規格上、11線分のスペースが必要)
-xPosition = 11 * lineWidth;
+
+// 左のマージンを決める
+if (janKind === "JAN-13"){xPosition = 11 * lineWidth;}
+if (janKind === "JAN-8"){xPosition = 7 * lineWidth;}
 
 
 // 左のガードバーを作る
@@ -338,7 +333,7 @@ function createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight
 	
 	var modules;
 	if (janKind === "JAN-13"){modules = 113;}
-	if (janKind === "JAN-8"){modules = 85;}
+	if (janKind === "JAN-8"){modules = 81;}
 	
 	var rect1 = doc.pathItems.rectangle(
 		0, // top
@@ -374,7 +369,7 @@ function createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cust
 		// グループに追加
 		rect1.move(barGroup, ElementPlacement.PLACEATEND);
 	
-	xPosition = xPosition + 2 * lineWidth;		
+	xPosition = xPosition + 2 * lineWidth;
 	
 	var rect2 = doc.pathItems.rectangle(
 		0, // top
@@ -582,7 +577,7 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 	
 	// 左側マージンを設定する
 	if (janKind === "JAN-13"){x = 2 * lineWidth;}
-	if (janKind === "JAN-8"){x = 14 * lineWidth;}
+	if (janKind === "JAN-8"){x = 10 * lineWidth;}
 	
 	var tf = [];
 	
