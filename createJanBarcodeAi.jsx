@@ -2,8 +2,8 @@
 // Created by Tatsuya Fujii.
 // https://blue.mints.ne.jp/jan/
 // https://github.com/ttyfj/illustrator-jan-barcode
-// version 9
-// Released Mar 4, 2026
+// version 10
+// Released Oct 5, 2026
 
 
 
@@ -13,31 +13,9 @@ main();
 function main() {
 
 
-// ドキュメント取得
-var doc;
-if (app.documents.length === 0) {
-	doc = app.documents.add();
-} else {
-	doc = app.activeDocument;
-}
-
-
-// グループ化に対応させる
-var barcodeGroup = doc.groupItems.add();
-barcodeGroup.name = "JAN_Barcode";
-
-// バーをサブグループにする
-var barGroup = barcodeGroup.groupItems.add();
-barGroup.name = "Bars";
-
-// JANの数字をサブグループにする
-var numberGroup = barcodeGroup.groupItems.add();
-numberGroup.name = "Numbers";
-
-
-
 // ダイアログ
 var dlg = new Window("dialog", "バーコードの設定");
+dlg.alignChildren = ["left", "top"]; // 要素を左寄せに配置
 
 dlg.add("statictext", undefined, "JAN-13またはJAN-8");
 var janInput = dlg.add("edittext", undefined, "");
@@ -51,9 +29,20 @@ dlg.add("statictext", undefined, "バーコードの高さ (pt)");
 var heightInput = dlg.add("edittext", undefined, "65");
 heightInput.characters = 10;
 
-var outlineCheck = dlg.add("checkbox", undefined, "数字をアウトライン化する");
-outlineCheck.value = false; // デフォルトOFF
+var isEqualHeight = dlg.add("checkbox", undefined, "バーの下端を揃える");
+isEqualHeight.value = false; // デフォルトOFF
 
+var numberPanel = dlg.add("panel", undefined, "数字");
+numberPanel.orientation = "column";
+numberPanel.alignChildren = "left";
+
+var rbText = numberPanel.add("radiobutton", undefined, "テキスト");
+var rbOutline = numberPanel.add("radiobutton", undefined, "アウトライン");
+var rbNone = numberPanel.add("radiobutton", undefined, "なし");
+
+rbText.value = true; // デフォルト選択
+    
+    
 var btns = dlg.add("group");
 btns.alignment = "right";
 btns.add("button", undefined, "キャンセル", {name:"cancel"});  // {name:"cancel"} のボタンが押されると dlg.show() の戻り値は 2 になる（仕様）
@@ -68,7 +57,81 @@ if (dlg.show() != 1) return;
 var jan = janInput.text;
 var lineWidth = Number(widthInput.text);
 var barcodeHeight = Number(heightInput.text);
-var shouldOutlineNumbers = outlineCheck.value;
+
+var numberMode = "text";
+if (rbOutline.value) {
+	numberMode = "outline";
+} else if (rbNone.value) {
+	numberMode = "none";
+}
+
+var customFontName = "";
+
+var defaultBarColorDef = {c: 0, m: 0, y: 0, k: 100, r: 0, g: 0, b: 0};
+var defaultNumberColorDef = {c: 0, m: 0, y: 0, k: 100, r: 0, g: 0, b: 0};
+var defaultBackgroundColorDef = {c: 0, m: 0, y: 0, k: 0, r: 255, g: 255, b: 255};
+
+
+
+
+
+
+
+///////////////////////////////////////////////////////////
+// 以下で設定のカスタムができます
+// ダイアログで入力した設定よりも優先されます
+// 有効にしたい場合は、その項目の行頭の // を取り除いて下さい
+// 各々の説明文の行頭の // は消さないでください。消すとエラーが発生します。
+
+
+// JANコードを設定します
+// jan = "2012345678903";
+
+// 線幅を設定します
+// lineWidth = 1;
+
+// バーコードの高さを設定します
+// barcodeHeight = 65;
+
+// バーの下端を揃える場合はtrue、揃えないでヒゲを付ける場合はfalseに設定します
+// isEqualHeight.value = false;
+
+// 数字の表記に使うフォント。PostScript名で記述します
+// customFontName = "Helvetica";
+
+// 数字をテキストで描画するにはtext、アウトライン化して描画するにはoutline、数字を描画しない場合はnoneにします
+// numberMode = "text";
+
+// 線の色を指定。CMYKとRGBの両方を入力しておくとカラーモードに合わせて自動選択されます
+// c,m,y,kの各値は0〜100の数字で、r,g,bの各値は0〜255の数字で記述して下さい
+// var customBarColorDef = {c: 0, m: 0, y: 0, k: 100, r: 0, g: 0, b: 0};
+
+// 数字の色を指定。CMYKとRGBの両方を入力しておくとカラーモードに合わせて自動選択されます
+// c,m,y,kの各値は0〜100の数字で、r,g,bの各値は0〜255の数字で記述して下さい
+// var customNumberColorDef = {c: 0, m: 0, y: 0, k: 100, r: 0, g: 0, b: 0};
+
+// 背景の色を指定。CMYKとRGBの両方を入力しておくとカラーモードに合わせて自動選択されます
+// c,m,y,kの各値は0〜100の数字で、r,g,bの各値は0〜255の数字で記述して下さい
+// var customBackgroundColorDef = {c: 0, m: 0, y: 0, k: 0, r: 255, g: 255, b: 255};
+
+
+// 設定のカスタム、ここまで
+///////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+// バーの下端を「揃える／揃えない」で、伸ばすヒゲの有無を設定する。
+var additionalHeight;
+if (isEqualHeight.value  === false) {
+	additionalHeight = 1;
+} else {
+	additionalHeight = 0;
+}
 
 
 // 入力されたデータの検証
@@ -78,10 +141,11 @@ if (!/^(?:\d{7,8}|\d{12,13})$/.test(jan)) {
 }
 
 
-if (lineWidth<=0 || barcodeHeight<=0) {
+if (isNaN(lineWidth) || isNaN(barcodeHeight) || lineWidth <= 0 || barcodeHeight <= 0) {
 	alert("線幅やバーコードの高さを正しく入力してください");
 	return;
 }
+
 
 
 
@@ -108,7 +172,6 @@ for (var i = 0; i < jan.length; i++) {
 
 
 // 各JANの規格上の桁数を変数にする
-// チェックディジット計算時の重み(weight)も変数にする
 var specificationalJanLength;
 
 if (janKind === "JAN-13"){
@@ -145,6 +208,9 @@ if (digits.length === specificationalJanLength) {
 		return;
 	}
 }
+
+
+
 
 
 
@@ -188,8 +254,44 @@ oddEven[9] = [1,0,0,1,0,1];
 
 
 
-// 塗り色を黒色に設定する
-var customColor = createBlackColor(doc);
+
+
+// ドキュメント取得
+var doc;
+if (app.documents.length === 0) {
+	doc = app.documents.add();
+} else {
+	doc = app.activeDocument;
+}
+
+// グループ化に対応させる
+var barcodeGroup = doc.groupItems.add();
+barcodeGroup.name = "JAN_Barcode";
+
+// バーをまとめておくサブグループを作る
+var barGroup = barcodeGroup.groupItems.add();
+barGroup.name = "Bars";
+
+
+
+
+
+
+
+// バーの塗り色を設定する
+var barColorDef = (typeof customBarColorDef !== 'undefined') ? customBarColorDef : defaultBarColorDef;  // カスタム設定がある場合のみそれを使う。無い時はデフォルト設定を使う
+var barColor = createColor(doc, barColorDef);
+
+// 数字の塗り色を設定する
+var numberColorDef = (typeof customNumberColorDef !== 'undefined') ? customNumberColorDef : defaultNumberColorDef;  // カスタム設定がある場合のみそれを使う。無い時はデフォルト設定を使う
+var numberColor = createColor(doc, numberColorDef);
+
+// 背景の塗り色を設定する
+var backgroundColorDef = (typeof customBackgroundColorDef !== 'undefined') ? customBackgroundColorDef : defaultBackgroundColorDef;  // カスタム設定がある場合のみそれを使う。無い時はデフォルト設定を使う
+var backgroundColor = createColor(doc, backgroundColorDef);
+
+
+
 
 
 
@@ -199,7 +301,7 @@ var xPosition = 0;
 
 
 // 背景を作る
-createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight, janKind);
+createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, numberMode, janKind, backgroundColor);
 
 
 // 左のマージンを決める
@@ -208,7 +310,7 @@ if (janKind === "JAN-8"){xPosition = 7 * lineWidth;}
 
 
 // 左のガードバーを作る
-createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, customColor);
+createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, barColor);
 xPosition = xPosition + (3 * lineWidth);
 
 
@@ -229,13 +331,13 @@ if (janKind === "JAN-8"){
 }
 
 for (var digitNumber = startDigit; digitNumber <= endDigit; digitNumber++) {
-	createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, customColor);
+	createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, barColor);
 	xPosition = xPosition + (7 * lineWidth);
 }
 
 
 // センターバーを作る
-createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, customColor);
+createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, barColor);
 xPosition = xPosition + (5 * lineWidth);
 
 
@@ -256,35 +358,42 @@ if (janKind === "JAN-8"){
 }
 
 for (var digitNumber2 = startDigit2; digitNumber2 <= endDigit2; digitNumber2++) {
-	createBarcodeSegment(doc, barGroup, digitNumber2, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, customColor);
+	createBarcodeSegment(doc, barGroup, digitNumber2, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, barColor);
 	xPosition = xPosition + (7 * lineWidth);
 }
 
 
 // 右のガードバーを作る
-createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, customColor);
+createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, barColor);
 
 
 // JANの数字を作る
-createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customColor, digits, janKind);
-
-
-// 数字をアウトライン化（オプションとして指定された場合）
-if (shouldOutlineNumbers) {
+if (numberMode  === "text" || numberMode  === "outline") {
 	
-	// アウトライン化されたデータをまとめるグループを作る
-	var outlinedNumberGroup = barcodeGroup.groupItems.add();
-	outlinedNumberGroup.name = "Numbers_Outlined";
+	// JANの数字をまとめるためにサブグループを作る
+	var numberGroup = barcodeGroup.groupItems.add();
+	numberGroup.name = "Numbers";
 	
-	// アウトライン化を実行
-	outlineNumberGroup(numberGroup, outlinedNumberGroup, customColor);
+	createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, numberColor, digits, janKind, customFontName);
 }
 
 
-// 数字をアウトライン化した場合、空になった元の数字グループを削除
-if (shouldOutlineNumbers && numberGroup.pageItems.length === 0) {
-    numberGroup.remove();
+// 数字をアウトライン化する（指定された場合）
+if (numberMode === "outline") {
+	
+	while (numberGroup.textFrames.length > 0) {
+		
+		// グループ内からテキストを１つずつ取り出す
+		var tf = numberGroup.textFrames[0];
+		
+		// テキストをアウトライン化する
+		tf.createOutline();
+		
+	}
+	
 }
+
+
 
 
 // 表示領域の中央にバーコードを移動させる
@@ -304,45 +413,73 @@ moveGroupToViewCenter(doc, barcodeGroup);
 
 
 
-// バーコードの描画に使う黒色をドキュメントのカラーモードに合わせて設定する
-// CMYKドキュメントでは K100% の黒、RGBドキュメントでは RGB(0,0,0) を使用する
-function createBlackColor(doc) {
-	var black;
+
+
+
+
+
+// バーコードの描画に使う色をドキュメントのカラーモードに合わせて設定する
+function createColor(doc, colorDef) {
+	var targetColor;
 	
-	if (doc.documentColorSpace === DocumentColorSpace.CMYK) {
-		black = new CMYKColor();
-		black.cyan    = 0;
-		black.magenta = 0;
-		black.yellow  = 0;
-		black.black   = 100;
-	} else {
-		black = new RGBColor();
-		black.red   = 0;
-		black.green = 0;
-		black.blue  = 0;
+	// colorDef に従って色を設定する
+	// もし colorDef が未定義の場合はドキュメントのカラーモードを読み込んで、
+	// CMYKドキュメントでは K100% の黒、RGBドキュメントでは RGB(0,0,0) を使用する
+	if (colorDef && doc.documentColorSpace === DocumentColorSpace.CMYK) {
+		targetColor = new CMYKColor();
+		targetColor.cyan    = (colorDef.c !== undefined) ? colorDef.c : 0;
+		targetColor.magenta = (colorDef.m !== undefined) ? colorDef.m : 0;
+		targetColor.yellow  = (colorDef.y !== undefined) ? colorDef.y : 0;
+		targetColor.black   = (colorDef.k !== undefined) ? colorDef.k : 100;
+	 } else if (colorDef && doc.documentColorSpace === DocumentColorSpace.RGB) {
+		targetColor = new RGBColor();
+		targetColor.red   = (colorDef.r !== undefined) ? colorDef.r : 0;
+		targetColor.green = (colorDef.g !== undefined) ? colorDef.g : 0;
+		targetColor.blue  = (colorDef.b !== undefined) ? colorDef.b : 0;
+	} else if (!colorDef) {
+		if (doc.documentColorSpace === DocumentColorSpace.CMYK) {
+			targetColor = new CMYKColor();
+			targetColor.cyan    = 0;
+			targetColor.magenta = 0;
+			targetColor.yellow  = 0;
+			targetColor.black   = 100;
+		} else {
+			targetColor = new RGBColor();
+			targetColor.red   = 0;
+			targetColor.green = 0;
+			targetColor.blue  = 0;
+		}
 	}
 	
-	return black;
+	return targetColor;
 }
 
 
 
 
 // 背景を描画する
-function createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight, janKind){
+function createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, numberMode, janKind, backgroundColor){
 	
 	var modules;
 	if (janKind === "JAN-13"){modules = 113;}
 	if (janKind === "JAN-8"){modules = 81;}
 	
+	var backgroundHeight;
+	if (numberMode  === "text" || numberMode  === "outline") {
+		backgroundHeight = barcodeHeight + 12 * lineWidth;
+	} else if (numberMode  === "none") {
+		backgroundHeight = barcodeHeight + 5 * lineWidth * additionalHeight;
+	}
+	
 	var rect1 = doc.pathItems.rectangle(
 		0, // top
 		xPosition, // left
 		(modules * lineWidth), // width
-		(barcodeHeight + 12 * lineWidth) // height
+		backgroundHeight // height
 		);
 		
-		rect1.filled = false;
+		rect1.filled = true;
+		rect1.fillColor = backgroundColor;
 		rect1.stroked = false;
 		
 		// グループに追加
@@ -353,17 +490,17 @@ function createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight
 
 
 // ガードバーを描画する
-function createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, customColor) {
+function createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, barColor) {
 	
 	var rect1 = doc.pathItems.rectangle(
 		0, // top
 		xPosition, // left
 		lineWidth, // width
-		(barcodeHeight + 5 * lineWidth) // height
+		(barcodeHeight + 5 * lineWidth * additionalHeight) // height
 		);
 		
 		rect1.filled = true;
-		rect1.fillColor = customColor;
+		rect1.fillColor = barColor;
 		rect1.stroked = false;
 		
 		// グループに追加
@@ -375,11 +512,11 @@ function createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cust
 		0, // top
 		xPosition, // left
 		lineWidth, // width
-		(barcodeHeight + 5 * lineWidth) // height
+		(barcodeHeight + 5 * lineWidth * additionalHeight) // height
 		);
 		
 		rect2.filled = true;
-		rect2.fillColor = customColor;
+		rect2.fillColor = barColor;
 		rect2.stroked = false;
 		
 		// グループに追加
@@ -390,7 +527,7 @@ function createGuardBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cust
 
 
 // JANコードの各数字をバーで表現(描画)する
-function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, customColor) {
+function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio, reverseRatio, oddEven, lineWidth, xPosition, barcodeHeight, barColor) {
 	
 	
 	var leftDataCharacter = false;
@@ -450,7 +587,7 @@ function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio
 		);
 
 		rect1.filled = true;
-		rect1.fillColor = customColor;
+		rect1.fillColor = barColor;
 		rect1.stroked = false;
 		
 		// グループに追加
@@ -469,7 +606,7 @@ function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio
 		);
 		
 		rect2.filled = true;
-		rect2.fillColor = customColor;
+		rect2.fillColor = barColor;
 		rect2.stroked = false;
 		
 		// グループに追加
@@ -493,7 +630,7 @@ function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio
 		);
 		
 		rect1.filled = true;
-		rect1.fillColor = customColor;
+		rect1.fillColor = barColor;
 		rect1.stroked = false;
 		
 		// グループに追加
@@ -512,7 +649,7 @@ function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio
 		);
 		
 		rect2.filled = true;
-		rect2.fillColor = customColor;
+		rect2.fillColor = barColor;
 		rect2.stroked = false;
 		
 		// グループに追加
@@ -526,7 +663,7 @@ function createBarcodeSegment(doc, barGroup, digitNumber, digits, janKind, ratio
 
 
 // センターバーを描画
-function createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, customColor){
+function createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, additionalHeight, barColor){
 	
 	xPosition = xPosition + lineWidth;		
 		
@@ -534,11 +671,11 @@ function createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cus
 		0, // top
 		xPosition, // left
 		lineWidth, // width
-		(barcodeHeight + 5 * lineWidth) // height
+		(barcodeHeight + 5 * lineWidth * additionalHeight) // height
 		);
 		
 		rect1.filled = true;
-		rect1.fillColor = customColor;
+		rect1.fillColor = barColor;
 		rect1.stroked = false;
 		
 		// グループに追加
@@ -552,11 +689,11 @@ function createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cus
 		0, // top
 		xPosition, // left
 		lineWidth, // width
-		(barcodeHeight + 5 * lineWidth) // height
+		(barcodeHeight + 5 * lineWidth * additionalHeight) // height
 		);
 		
 		rect2.filled = true;
-		rect2.fillColor = customColor;
+		rect2.fillColor = barColor;
 		rect2.stroked = false;
 		
 		// グループに追加
@@ -571,7 +708,7 @@ function createCenterBar(doc, barGroup, lineWidth, xPosition, barcodeHeight, cus
 
 
 // JANの数字を描画する
-function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customColor, digits, janKind) {
+function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, numberColor, digits, janKind, customFontName) {
 	
 	var x;
 	
@@ -579,16 +716,14 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 	if (janKind === "JAN-13"){x = 2 * lineWidth;}
 	if (janKind === "JAN-8"){x = 10 * lineWidth;}
 	
-	var tf = [];
 	
-	var baselineOffset = 10.56;
-	// Illustratorの textFrame では、テキストのベースラインがY座標 0 から一定量ズレる
-	// その補正値をbaselineOffsetに代入しておく
-	// 「baselineOffset = 10.56」が推奨（実測して求めた数値）
-	// この値はフォントサイズには依存しない
+	
 	
 	// フォント取得
-	var barcodeFont = getBarcodeFont(doc);
+	var barcodeFont = getBarcodeFont(doc, customFontName);
+	
+	
+	var tf = [];
 	
 	
 	for (var j = 0; j < digits.length; j++) {
@@ -597,11 +732,23 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 		
 		tf[j].contents = digits[j];
 		
-		// 各セグメントの下でテキストを中央揃えにする
-		tf[j].left = x + (7 * lineWidth) / 2;
-		tf[j].paragraphs[0].justification = Justification.CENTER;
+		// フォント
+		if (barcodeFont) {
+			tf[j].textRange.characterAttributes.textFont = barcodeFont;
+		}
 		
-		tf[j].top  = -1 * (barcodeHeight + 7 * lineWidth) + baselineOffset;
+		// フォントサイズ
+		tf[j].textRange.characterAttributes.size = (7 * lineWidth);
+		
+		// 色
+		tf[j].textRange.characterAttributes.fillColor = numberColor;
+		
+		
+		tf[j].left = x + (7 * lineWidth) / 2;
+		// 各セグメントの下でテキストを中央揃えにする
+		tf[j].paragraphs[0].justification = Justification.CENTER;
+
+		tf[j].top = -1 * (barcodeHeight + 1 * lineWidth);
 		
 		
 		
@@ -615,7 +762,7 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 			}
 		}
 		
-
+	
 		
 		
 		var lastDigitOfLeftDataCharacter;
@@ -626,19 +773,7 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 		if (j == lastDigitOfLeftDataCharacter){
 			x = x + (5 * lineWidth);
 		}
-		
-		
-		// フォント
-		if (barcodeFont) {
-			tf[j].textRange.characterAttributes.textFont = barcodeFont;
-		}
-		
-		// フォントサイズ
-		tf[j].textRange.characterAttributes.size = (7 * lineWidth);
-		
-		// 色
-		tf[j].textRange.characterAttributes.fillColor = customColor;
-		
+				
 		
 		// グループに入れる
 		tf[j].move(numberGroup, ElementPlacement.PLACEATEND);
@@ -651,14 +786,11 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, customCol
 
 
 // フォントを設定
-function getBarcodeFont(doc) {
+function getBarcodeFont(doc, customFontName) {
 	var font;
 	
 	
-	
-	// 数字の表記に使うフォントを配列としてここに追加します
-	// 上のフォントから優先して使用されます
-	// PostScript名で記述します
+	// 上のフォントから優先して使用
 	// 配列の一番最後には「,」をつけないこと
 	var candidateFonts = [
 		"OCRB",
@@ -668,7 +800,13 @@ function getBarcodeFont(doc) {
 	//  "OCRBStd" → Adobe Fonts
 	
 	
+	if (customFontName !== "") {
+		// candidateFonts配列の最初に追加
+		candidateFonts.unshift(customFontName);
+	}
 	
+	
+	// candidateFontsを最初から読み込んで、存在するフォントであれば即returnして終わる
 	for (var i = 0; i < candidateFonts.length; i++) {
 		try {
 			return app.textFonts.getByName(candidateFonts[i]);
@@ -676,45 +814,7 @@ function getBarcodeFont(doc) {
 		}
 	}
 	
-	// candidateFontsに一致するフォントが無い場合、一時テキストを作成して、それよりフォントを取得
-	var tf = doc.textFrames.add();
-	tf.contents = "0";
-
-	font = tf.textRange.characterAttributes.textFont;
-
-	tf.remove(); // 一時テキストを削除
-
 	return font;
-}
-
-
-
-
-
-function outlineNumberGroup(numberGroup, outlinedNumberGroup, customColor) {
-	
-	// numberGroup内のtextFramesが無くなるまで処理
-	// テキストをアウトライン化すると、もはやテキスト形式ではなくなるため、
-	// numberGroup.textFrames には含まれなくなる
-	while (numberGroup.textFrames.length > 0) {
-	
-		var tf = numberGroup.textFrames[0];
-		
-		// アウトライン化（戻り値は配列になる）
-		var outlines = tf.createOutline();
-
-		// アウトライン化したものを outlinedNumberGroup に移動
-		// 文字によっては複数のパスができるので、outlinesは配列になっている
-		// よって配列の中身を取り出してからじゃないと、色の変更や、outlinedNumberGroupへの移動はできない
-		for (var i = 0; i < outlines.length; i++) {
-			// createOutline() により色は引き継がれるが、
-			// 将来の仕様変更や可読性のため明示的に色を設定しておく
-			outlines[i].fillColor = customColor;
-			outlines[i].stroked = false;
-			
-			outlines[i].move(outlinedNumberGroup, ElementPlacement.PLACEATEND);
-		}
-	}
 }
 
 
