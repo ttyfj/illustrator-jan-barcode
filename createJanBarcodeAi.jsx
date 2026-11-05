@@ -1,9 +1,9 @@
-// This script is public domain.
+// This script is public domain / CC0 1.0.
 // Created by Tatsuya Fujii.
 // https://blue.mints.ne.jp/jan/
 // https://github.com/ttyfj/illustrator-jan-barcode
-// version 10
-// Released Oct 5, 2026
+// version 11
+// Released  Nov 6, 2026
 
 
 
@@ -13,25 +13,87 @@ main();
 function main() {
 
 
-// ダイアログ
+// ダイアログウィンドウの作成
 var dlg = new Window("dialog", "バーコードの設定");
-dlg.alignChildren = ["left", "top"]; // 要素を左寄せに配置
+dlg.alignChildren = ["fill", "top"]; // 要素をダイアログの幅いっぱいに配置
 
-dlg.add("statictext", undefined, "JAN-13またはJAN-8");
+// JANコード入力欄
+dlg.add("statictext", undefined, "JANコード (8桁 または 13桁)");
 var janInput = dlg.add("edittext", undefined, "");
 janInput.characters = 13;
 
-dlg.add("statictext", undefined, "線幅 (pt)");
-var widthInput = dlg.add("edittext", undefined, "1");
+// 規格サイズ選択のチェックボックス（デフォルトON）
+var specCheckbox = dlg.add("checkbox", undefined, "JIS規格のサイズで作成する");
+specCheckbox.value = true; 
+
+// 線幅（モジュール幅）入力グループ
+var widthGroup = dlg.add("group");
+widthGroup.orientation = "column";
+widthGroup.alignChildren = ["left", "top"];
+widthGroup.add("statictext", undefined, "線幅 (mm)");
+var widthInput = widthGroup.add("edittext", undefined, "0.33"); // JAN標準モジュール幅 0.33mm
 widthInput.characters = 10;
+widthInput.enabled = false; // 最初は入力不可にしておく
 
-dlg.add("statictext", undefined, "バーコードの高さ (pt)");
-var heightInput = dlg.add("edittext", undefined, "65");
+// バーコードの高さ入力グループ
+var heightGroup = dlg.add("group");
+heightGroup.orientation = "column";
+heightGroup.alignChildren = ["left", "top"];
+var heightGroupText = heightGroup.add("statictext", undefined, "バーコードの高さ (mm)");
+var heightInput = heightGroup.add("edittext", undefined, "22.85"); // JAN-13の標準高さ 22.85mm
 heightInput.characters = 10;
+heightInput.enabled = false; // 最初は入力不可にしておく
 
+
+
+// 桁数に応じて標準サイズを決定する関数
+function updateStandardSize() {
+	var code = janInput.text.replace(/\s+/g, ""); // 入力値の前後の空白を除去
+	
+	// モジュール幅はJAN-8 / JAN-13ともに共通で 0.33mm
+	widthInput.text = "0.33";
+	
+	if (code.length <= 8) {
+		// JAN-8の場合の標準高さ: 18.23 mm
+		heightInput.text = "18.23";
+	} else {
+		// JAN-13の場合の標準高さ: 22.85 mm
+		heightInput.text = "22.85";
+	}
+}
+
+
+
+// イベントハンドラの定義
+
+// JANコードの文字が変更されたときの処理
+janInput.onChanging = function() {
+	// 「規格のサイズで作成する」にチェックが入っている場合のみ自動で数値を切り替える
+	if (specCheckbox.value) {
+		updateStandardSize();
+	}
+};
+
+// 「規格のサイズで作成する」チェックボックスがクリックされたときの処理
+specCheckbox.onClick = function() {
+	if (this.value) {
+		// チェックがONになった場合：標準サイズを再適用し、入力欄を無効化
+		updateStandardSize();
+		widthInput.enabled = false;
+		heightInput.enabled = false;
+	} else {
+		// チェックがOFFになった場合：ユーザーが自由に入力できるようにロックを解除
+		widthInput.enabled = true;
+		heightInput.enabled = true;
+	}
+};
+
+
+// バーの下端を揃えるオプション
 var isEqualHeight = dlg.add("checkbox", undefined, "バーの下端を揃える");
 isEqualHeight.value = false; // デフォルトOFF
 
+// バーコード下部の数字の出力形式を選ぶラジオボタンパネル
 var numberPanel = dlg.add("panel", undefined, "数字");
 numberPanel.orientation = "column";
 numberPanel.alignChildren = "left";
@@ -40,23 +102,28 @@ var rbText = numberPanel.add("radiobutton", undefined, "テキスト");
 var rbOutline = numberPanel.add("radiobutton", undefined, "アウトライン");
 var rbNone = numberPanel.add("radiobutton", undefined, "なし");
 
-rbText.value = true; // デフォルト選択
-    
-    
+rbText.value = true; // 「テキスト」をデフォルト選択
+
+
+// ダイアログ下部のボタングループ
 var btns = dlg.add("group");
 btns.alignment = "right";
-btns.add("button", undefined, "キャンセル", {name:"cancel"});  // {name:"cancel"} のボタンが押されると dlg.show() の戻り値は 2 になる（仕様）
-btns.add("button", undefined, "OK", {name:"ok"});  // {name:"ok"} のボタンが押されると dlg.show() の戻り値は 1 になる（仕様）
+btns.add("button", undefined, "キャンセル", {name:"cancel"}); // キャンセルボタン (戻り値: 2)
+btns.add("button", undefined, "OK", {name:"ok"});           // OKボタン (戻り値: 1)
 
 
 
+
+
+
+// ダイアログの実行と値の取得
 if (dlg.show() != 1) return;
 
 
 // 数値化
 var jan = janInput.text;
-var lineWidth = Number(widthInput.text);
-var barcodeHeight = Number(heightInput.text);
+var mmLineWidth = Number(widthInput.text);
+var mmBarcodeHeight = Number(heightInput.text);
 
 var numberMode = "text";
 if (rbOutline.value) {
@@ -76,7 +143,6 @@ var defaultBackgroundColorDef = {c: 0, m: 0, y: 0, k: 0, r: 255, g: 255, b: 255}
 
 
 
-
 ///////////////////////////////////////////////////////////
 // 以下で設定のカスタムができます
 // ダイアログで入力した設定よりも優先されます
@@ -87,11 +153,11 @@ var defaultBackgroundColorDef = {c: 0, m: 0, y: 0, k: 0, r: 255, g: 255, b: 255}
 // JANコードを設定します
 // jan = "2012345678903";
 
-// 線幅を設定します
-// lineWidth = 1;
+// 線幅を設定します(mm)
+// mmLineWidth = 0.33;
 
-// バーコードの高さを設定します
-// barcodeHeight = 65;
+// バーコードの高さを設定します(mm)
+// mmBarcodeHeight = 22.85;
 
 // バーの下端を揃える場合はtrue、揃えないでヒゲを付ける場合はfalseに設定します
 // isEqualHeight.value = false;
@@ -122,6 +188,11 @@ var defaultBackgroundColorDef = {c: 0, m: 0, y: 0, k: 0, r: 255, g: 255, b: 255}
 
 
 
+
+
+// mmからptへ変換
+var lineWidth = mmLineWidth * 72 / 25.4;
+var barcodeHeight = mmBarcodeHeight * 72 / 25.4;
 
 
 
@@ -188,7 +259,7 @@ var tempDigits = digits.slice(0, specificationalJanLength - 1);
 var reverseDigits = tempDigits.reverse();
 
 for (var i = 0; i < reverseDigits.length; i++) {
-    sum += (i % 2 === 0) ? reverseDigits[i] * 3 : reverseDigits[i] * 1;
+	sum += (i % 2 === 0) ? reverseDigits[i] * 3 : reverseDigits[i] * 1;
 }
 
 var checkDigit = (10 - (sum % 10)) % 10;
@@ -466,8 +537,11 @@ function createBackground(doc, barcodeGroup, lineWidth, xPosition, barcodeHeight
 	
 	var backgroundHeight;
 	if (numberMode  === "text" || numberMode  === "outline") {
-		backgroundHeight = barcodeHeight + 12 * lineWidth;
+		// JIS規格のバーコード全体の高さは25.93mmで、ヒゲなしのバーの高さは22.85mmで、1モジュールの幅は0.33mmなので、 (25.93 - 22.85) / 0.33 = 9.333
+		backgroundHeight = barcodeHeight + 9.333 * lineWidth;
 	} else if (numberMode  === "none") {
+		// ヒゲの高さは5モジュール幅
+		// additionalHeightは1か0
 		backgroundHeight = barcodeHeight + 5 * lineWidth * additionalHeight;
 	}
 	
@@ -723,6 +797,47 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, numberCol
 	var barcodeFont = getBarcodeFont(doc, customFontName);
 	
 	
+	
+	// 一時的に7ptサイズのテキストフレームを作ってアウトライン化して文字の高さを測定する
+	var tempFrame = doc.textFrames.add();
+	tempFrame.contents = "0123456789"; // 基準にする文字
+	
+	var textRange = tempFrame.textRange;
+	textRange.size = 7;
+	try {
+		textRange.characterAttributes.textFont = barcodeFont;
+	} catch(e) {
+		// フォントが見つからない場合はデフォルトのまま
+	}
+	
+	var originalBounds = tempFrame.geometricBounds; // [left, top, right, bottom]のように配列として取得
+	var originalTopY = originalBounds[1];
+	
+	
+	// アウトライン化してバウンディングボックスを取得
+	var outlineItem = tempFrame.createOutline();
+	var bounds = outlineItem.geometricBounds; // [left, top, right, bottom]のように配列として取得
+	var outlineBottomY = bounds[3];
+	
+	// オリジナルのバウンディングボックスの上端からベースラインまでの距離を求める
+	var glyphHeight = originalTopY - outlineBottomY;
+	
+	// 用が済んだ一時オブジェクトを削除
+	outlineItem.remove();
+	
+	
+	// 文字とその上のスペースの高さ合計はJISの規格から、lineWidth * 9.333
+	// 文字の上のスペースは、lineWidth * 1 とする。よって、
+	// 7 : fontSize = glyphHeight : (lineWidth * 9.333 - lineWidth * 1)
+	// よって
+	var fontSize = 7 * (lineWidth * 9.333 - lineWidth * 1) / glyphHeight;
+	
+	// 文字の上端のY座標は
+	var y = -1 * (barcodeHeight + lineWidth);
+	
+	
+	
+	
 	var tf = [];
 	
 	
@@ -738,17 +853,18 @@ function createBarcodeText(doc, numberGroup, lineWidth, barcodeHeight, numberCol
 		}
 		
 		// フォントサイズ
-		tf[j].textRange.characterAttributes.size = (7 * lineWidth);
+		tf[j].textRange.characterAttributes.size = fontSize;
 		
 		// 色
 		tf[j].textRange.characterAttributes.fillColor = numberColor;
 		
-		
+		// X座標
 		tf[j].left = x + (7 * lineWidth) / 2;
 		// 各セグメントの下でテキストを中央揃えにする
 		tf[j].paragraphs[0].justification = Justification.CENTER;
-
-		tf[j].top = -1 * (barcodeHeight + 1 * lineWidth);
+		
+		// Y座標
+		tf[j].top = y;
 		
 		
 		
@@ -846,9 +962,5 @@ function moveGroupToViewCenter(doc, barcodeGroup) {
 	
 	barcodeGroup.translate(dx, dy);
 }
-
-
-
-
 
 
